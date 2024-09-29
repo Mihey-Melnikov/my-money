@@ -11,6 +11,7 @@ class UserModel(Base):
     id = Column(Integer, primary_key=True)
     telegram_id = Column(Integer, unique=True, nullable=False)
     name = Column(String, nullable=False)
+    
     categories = relationship('CategoryModel', back_populates='user')
     transactions = relationship('TransactionModel', back_populates='user')
 

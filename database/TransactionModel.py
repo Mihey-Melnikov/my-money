@@ -13,8 +13,9 @@ class TransactionModel(Base):
     amount = Column(Float, nullable=False)
     description = Column(String, nullable=False)
     date = Column(DateTime, default=datetime.utcnow)
-    user_id = Column(Integer, ForeignKey('users.id'))
-    category_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
+    user_id = Column(Integer, ForeignKey('user.id'))
+    category_id = Column(Integer, ForeignKey('category.id'), nullable=True)
+
     user = relationship('UserModel', back_populates='transaction')
     category = relationship('CategoryModel', back_populates='transaction')
 

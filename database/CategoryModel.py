@@ -10,7 +10,9 @@ class CategoryModel(Base):
     __tablename__ = 'category'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id'))
+    description = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey('user.id'))
+
     user = relationship('UserModel', back_populates='category')
     transactions = relationship('TransactionModel', back_populates='category')
 
