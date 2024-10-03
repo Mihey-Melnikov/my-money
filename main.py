@@ -1,4 +1,4 @@
-from database.DatabaseManager import DatabaseManager
+from DatabaseManager import DatabaseManager
 from MyMoneyBot import MyMoneyBot
 
 

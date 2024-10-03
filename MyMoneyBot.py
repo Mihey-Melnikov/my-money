@@ -14,6 +14,7 @@ class MyMoneyBot:
         @self.bot.message_handler(commands=['start'])
         def start(message):
             user = message.from_user
+            self.db_manager.add_user(user.id, user.first_name)
             self.bot.send_message(message.chat.id, f"Привет, {user.first_name}! Это твой персональный бюджет-трекер.")
 
         @self.bot.message_handler(commands=['add_income'])
@@ -50,6 +51,24 @@ class MyMoneyBot:
                     self.bot.send_message(message.chat.id, "Расход добавлен!")
                 except Exception as e:
                     self.bot.send_message(message.chat.id, "Ошибка при добавлении расхода. Попробуйте снова.")
+        
+        @self.bot.message_handler(commands=['add_category'])
+        def add_category(message):
+            # логика добавления категорий
+            self.bot.send_message(message.chat.id, "Введите название категории и ее описание через запятую (Пример: Рестораны, поход в ресторан)")
+
+            @self.bot.message_handler(content_types=['text'])
+            def process_category(message):
+                try:
+                    user_id = message.from_user.id
+                    category_data = message.text.split(',')
+                    name = category_data[0].strip()
+                    description = category_data[1].strip()
+                    self.db_manager.add_category(user_id, name, description)
+                    self.bot.send_message(message.chat.id, "Категория добавлена!")
+                except Exception as e:
+                    self.bot.send_message(message.chat.id, "Ошибка при добавлении категории. Попробуйте снова.")
+
 
     def run(self):
         self.bot.polling()
