@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, create_engine
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Boolean, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
@@ -53,6 +53,7 @@ class CategoryModel(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=False)
     user_id = Column(Integer, ForeignKey('user.telegram_id'))
+    is_del = Column(Boolean, default=False, nullable=False)
 
     user = relationship('UserModel', back_populates='category')
     transaction = relationship('TransactionModel', back_populates='category')

@@ -8,25 +8,47 @@ class MyMoneyBot:
         self.db_manager = db_manager
         self.add_handlers()
         self.buttons = {
-            "category": "Добавить категорию 🗒",
-            "income": "Добавить доход 📈",
-            "expense": "Добавить расход 📉"
+            "add_category": "Добавить категорию 🗒",
+            "add_income": "Добавить доход 📈",
+            "add_expense": "Добавить расход 📉",
+            "category": "Мои категории 📓",
+            "statistics": "Статистика 💰"
         }
 
     def main_menu(self):
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add(
+            KeyboardButton(self.buttons["add_category"]),
+            KeyboardButton(self.buttons["add_income"]),
+            KeyboardButton(self.buttons["add_expense"]),
             KeyboardButton(self.buttons["category"]),
-            KeyboardButton(self.buttons["income"]),
-            KeyboardButton(self.buttons["expense"])
+            KeyboardButton(self.buttons["statistics"])
         )
         return keyboard
 
     def categories_menu(self, user_id):
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-        categories = self.db_manager.get_categories(user_id)  # todo: фильтрация по типу категории
+        categories = self.db_manager.get_categories(user_id)
         for category in categories:
             keyboard.add(KeyboardButton(f"🗒 {category.name}"))
+        return keyboard
+    
+    def categories_action_menu(self):
+        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add(
+            KeyboardButton("Удалить категорию"),
+            KeyboardButton("Изменить категорию")
+        )
+        return keyboard
+    
+    def statistics_action_menu(self):
+        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add(
+            KeyboardButton("Топ трат"),
+            KeyboardButton("Топ дохода"),
+            KeyboardButton("Динамика трат"),
+            KeyboardButton("Динамика дохода")
+        )
         return keyboard
 
     def add_handlers(self):
@@ -42,7 +64,7 @@ class MyMoneyBot:
                 reply_markup=self.main_menu()
             )
 
-        @self.bot.message_handler(func=lambda message: message.text == self.buttons["income"])
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["add_income"])
         def add_income(message):
             if not self.db_manager.get_categories(message.from_user.id):
                 self.bot.send_message(
@@ -58,7 +80,7 @@ class MyMoneyBot:
                 reply_markup=self.categories_menu(message.from_user.id)
             )
 
-        @self.bot.message_handler(func=lambda message: message.text == self.buttons["expense"])
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["add_expense"])
         def add_expense(message):
             if not self.db_manager.get_categories(message.from_user.id):
                 self.bot.send_message(
@@ -74,13 +96,22 @@ class MyMoneyBot:
                 reply_markup=self.categories_menu(message.from_user.id)
             )
 
-        @self.bot.message_handler(func=lambda message: message.text == self.buttons["category"])
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["add_category"])
         def add_category(message):
             self.db_manager.update_user_state(message.from_user.id, "category")
             self.bot.send_message(
                 message.chat.id,
                 "Введите название категории и ее описание через запятую",
                 reply_markup=ReplyKeyboardRemove()
+            )
+        
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["category"])
+        def get_categories(message):
+            categories = "\n- ".join([category.name for category in self.db_manager.get_categories(message.from_user.id)])
+            self.bot.send_message(
+                message.chat.id,
+                f"Ваши категории:\n- {categories}",
+                reply_markup=self.categories_action_menu()
             )
 
         @self.bot.message_handler(func=lambda message: "🗒" in message.text)
@@ -92,6 +123,38 @@ class MyMoneyBot:
                 f"Введите сумму {'дохода' if user_state == 'income' else 'расхода'}, описание и категорию через запятую",
                 reply_markup=ReplyKeyboardRemove()
             )
+
+        @self.bot.message_handler(func=lambda message: message.text == "Удалить категорию")
+        def del_category(message):
+            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+
+        @self.bot.message_handler(func=lambda message: message.text == "Изменить категорию")
+        def update_category(message):
+            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["statistics"])
+        def select_statistics(message):
+            self.bot.send_message(
+                message.chat.id,
+                "Что вы хотите узнать?",
+                reply_markup=self.statistics_action_menu()
+            )
+
+        @self.bot.message_handler(func=lambda message: message.text == "Топ трат")
+        def get_top_expense(message):
+            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+        
+        @self.bot.message_handler(func=lambda message: message.text == "Топ дохода")
+        def get_top_expense(message):
+            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+        
+        @self.bot.message_handler(func=lambda message: message.text == "Динамика трат")
+        def get_top_expense(message):
+            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+        
+        @self.bot.message_handler(func=lambda message: message.text == "Динамика дохода")
+        def get_top_expense(message):
+            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
 
         @self.bot.message_handler(content_types=['text'])
         def process_action(message):
