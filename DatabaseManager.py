@@ -15,6 +15,8 @@ class UserModel(Base):
     __tablename__ = 'user'
     telegram_id = Column(Integer, unique=True, nullable=False, primary_key=True)
     name = Column(String, nullable=False)
+    current_state = Column(String, default=None)
+    selected_category = Column(Integer, default=None)
     
     category = relationship('CategoryModel', back_populates='user')
     transaction = relationship('TransactionModel', back_populates='user')
@@ -81,13 +83,27 @@ class DatabaseManager:
 
     def get_user(self, telegram_id):
         return self.session.query(UserModel).filter_by(telegram_id=telegram_id).first()
+    
+    def update_user_state(self, telegram_id, state):
+        user = self.session.query(UserModel).filter_by(telegram_id=telegram_id).first()
+        if user:
+            user.current_state = state
+            self.session.commit()
+            return user
+        return None
+    
+    def update_user_category(self, telegram_id, category):
+        user = self.session.query(UserModel).filter_by(telegram_id=telegram_id).first()
+        if user:
+            user.selected_category = category
+            self.session.commit()
+            return user
+        return None
 
     # Методы для работы с категориями
     def add_category(self, user_id, category_name, category_description):
         category = CategoryModel(name=category_name, user_id=user_id, description=category_description)
-        print(category)
         self.session.add(category)
-        print('успех')
         self.session.commit()
         return category
 
