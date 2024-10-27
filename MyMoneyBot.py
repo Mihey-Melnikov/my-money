@@ -1,5 +1,7 @@
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 
 class MyMoneyBot:
@@ -11,8 +13,15 @@ class MyMoneyBot:
             "add_category": "Добавить категорию 🗒",
             "add_income": "Добавить доход 📈",
             "add_expense": "Добавить расход 📉",
-            "category": "Мои категории 📓",
-            "statistics": "Статистика 💰"
+            "get_category": "Мои категории 📓",
+            "get_statistics": "Статистика 💰",
+            "del_category": "Удалить категорию ⛔️",
+            "update_category": "Изменить категорию 🔄",
+            "back_menu": "Вернуться в меню ↩️",
+            "top_expense": "Топ трат",
+            "top_income": "Топ дохода",
+            "dynamics_expense": "Динамика трат",
+            "dynamics_income": "Динамика дохода"
         }
 
     def main_menu(self):
@@ -21,8 +30,8 @@ class MyMoneyBot:
             KeyboardButton(self.buttons["add_category"]),
             KeyboardButton(self.buttons["add_income"]),
             KeyboardButton(self.buttons["add_expense"]),
-            KeyboardButton(self.buttons["category"]),
-            KeyboardButton(self.buttons["statistics"])
+            KeyboardButton(self.buttons["get_category"]),
+            KeyboardButton(self.buttons["get_statistics"])
         )
         return keyboard
 
@@ -31,23 +40,26 @@ class MyMoneyBot:
         categories = self.db_manager.get_categories(user_id)
         for category in categories:
             keyboard.add(KeyboardButton(f"🗒 {category.name}"))
+        keyboard.add(KeyboardButton(self.buttons["back_menu"]))
         return keyboard
     
     def categories_action_menu(self):
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add(
-            KeyboardButton("Удалить категорию"),
-            KeyboardButton("Изменить категорию")
+            KeyboardButton(self.buttons["del_category"]),
+            KeyboardButton(self.buttons["update_category"]),
+            KeyboardButton(self.buttons["back_menu"])
         )
         return keyboard
     
     def statistics_action_menu(self):
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add(
-            KeyboardButton("Топ трат"),
-            KeyboardButton("Топ дохода"),
-            KeyboardButton("Динамика трат"),
-            KeyboardButton("Динамика дохода")
+            KeyboardButton(self.buttons["top_expense"]),
+            KeyboardButton(self.buttons["top_income"]),
+            KeyboardButton(self.buttons["dynamics_expense"]),
+            KeyboardButton(self.buttons["dynamics_income"]),
+            KeyboardButton(self.buttons["back_menu"])
         )
         return keyboard
 
@@ -60,7 +72,7 @@ class MyMoneyBot:
             self.db_manager.update_user_category(message.from_user.id, None)
             self.bot.send_message(
                 message.chat.id,
-                f"Привет, {user.first_name}! Это твой персональный бюджет-трекер.",
+                f"Привет, {user.first_name}! Это твой персональный бюджет-трекер. Выбери действие:",
                 reply_markup=self.main_menu()
             )
 
@@ -105,14 +117,19 @@ class MyMoneyBot:
                 reply_markup=ReplyKeyboardRemove()
             )
         
-        @self.bot.message_handler(func=lambda message: message.text == self.buttons["category"])
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["get_category"])
         def get_categories(message):
-            categories = "\n- ".join([category.name for category in self.db_manager.get_categories(message.from_user.id)])
-            self.bot.send_message(
-                message.chat.id,
-                f"Ваши категории:\n- {categories}",
-                reply_markup=self.categories_action_menu()
-            )
+            categories = [[category.name, category.description] for category in self.db_manager.get_categories(message.from_user.id)]
+            col_labels = ['Название', 'Описание']
+            fig, ax = plt.subplots()
+            ax.axis('tight')
+            ax.axis('off')
+            ax.table(cellText=categories, colLabels=col_labels, cellLoc="center", loc="center")
+            image_stream = BytesIO()
+            plt.savefig(image_stream, format='png')
+            image_stream.seek(0)
+            plt.close(fig)
+            self.bot.send_photo(message.chat.id, image_stream, caption="Ваши категории:")
 
         @self.bot.message_handler(func=lambda message: "🗒" in message.text)
         def add_transaction(message):
@@ -120,19 +137,19 @@ class MyMoneyBot:
             user_state = self.db_manager.get_user(message.from_user.id).current_state
             self.bot.send_message(
                 message.chat.id,
-                f"Введите сумму {'дохода' if user_state == 'income' else 'расхода'}, описание и категорию через запятую",
+                f"Введите сумму {'дохода' if user_state == 'income' else 'расхода'} и описание через запятую",
                 reply_markup=ReplyKeyboardRemove()
             )
 
-        @self.bot.message_handler(func=lambda message: message.text == "Удалить категорию")
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["del_category"])
         def del_category(message):
             self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
 
-        @self.bot.message_handler(func=lambda message: message.text == "Изменить категорию")
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["update_category"])
         def update_category(message):
             self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
 
-        @self.bot.message_handler(func=lambda message: message.text == self.buttons["statistics"])
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["get_statistics"])
         def select_statistics(message):
             self.bot.send_message(
                 message.chat.id,
@@ -140,21 +157,25 @@ class MyMoneyBot:
                 reply_markup=self.statistics_action_menu()
             )
 
-        @self.bot.message_handler(func=lambda message: message.text == "Топ трат")
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["top_expense"])
         def get_top_expense(message):
             self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
         
-        @self.bot.message_handler(func=lambda message: message.text == "Топ дохода")
-        def get_top_expense(message):
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["top_income"])
+        def get_top_income(message):
             self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
         
-        @self.bot.message_handler(func=lambda message: message.text == "Динамика трат")
-        def get_top_expense(message):
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["dynamics_expense"])
+        def get_dynamics_expense(message):
             self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
         
-        @self.bot.message_handler(func=lambda message: message.text == "Динамика дохода")
-        def get_top_expense(message):
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["dynamics_income"])
+        def get_dynamics_income(message):
             self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+        
+        @self.bot.message_handler(func=lambda message: message.text == self.buttons["back_menu"])
+        def back_main_menu(message):
+            self.bot.send_message(message.chat.id, "Выбери действие:", reply_markup=self.main_menu())
 
         @self.bot.message_handler(content_types=['text'])
         def process_action(message):
