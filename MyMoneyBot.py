@@ -1,7 +1,10 @@
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 from io import BytesIO
+from datetime import timedelta, datetime
 
 
 class MyMoneyBot:
@@ -60,6 +63,17 @@ class MyMoneyBot:
             KeyboardButton(self.buttons["dynamics_expense"]),
             KeyboardButton(self.buttons["dynamics_income"]),
             KeyboardButton(self.buttons["back_menu"])
+        )
+        return keyboard
+    
+    def calendar_menu(self):
+        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add(
+            KeyboardButton("За последнюю неделю"),
+            KeyboardButton("За последний месяц"),
+            KeyboardButton("За последний квартал"),
+            KeyboardButton("За последний год"),
+            KeyboardButton("📅 Указать свою дату")
         )
         return keyboard
 
@@ -121,15 +135,24 @@ class MyMoneyBot:
         def get_categories(message):
             categories = [[category.name, category.description] for category in self.db_manager.get_categories(message.from_user.id)]
             col_labels = ['Название', 'Описание']
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(5, len(categories) * 0.4 + 0.5))
             ax.axis('tight')
             ax.axis('off')
-            ax.table(cellText=categories, colLabels=col_labels, cellLoc="center", loc="center")
+            table = ax.table(cellText=categories, colLabels=col_labels, cellLoc="left", loc="center")
+            for j, label in enumerate(col_labels):
+                header_cell = table[0, j]
+                header_cell.set_text_props(weight='bold', color='black')
+                header_cell.set_facecolor('#f0f0f0')
+            for i in range(1, len(categories) + 1): 
+                for j in range(len(col_labels)):
+                    table[i, j].set_text_props(ha="left")
             image_stream = BytesIO()
-            plt.savefig(image_stream, format='png')
+            plt.savefig(image_stream, format='png', bbox_inches='tight', pad_inches=0.05)
             image_stream.seek(0)
             plt.close(fig)
+
             self.bot.send_photo(message.chat.id, image_stream, caption="Ваши категории:")
+
 
         @self.bot.message_handler(func=lambda message: "🗒" in message.text)
         def add_transaction(message):
@@ -138,6 +161,14 @@ class MyMoneyBot:
             self.bot.send_message(
                 message.chat.id,
                 f"Введите сумму {'дохода' if user_state == 'income' else 'расхода'} и описание через запятую",
+                reply_markup=ReplyKeyboardRemove()
+            )
+        
+        @self.bot.message_handler(func=lambda message: "📅 Указать свою дату" == message.text)
+        def select_date(message):
+            self.bot.send_message(
+                message.chat.id, 
+                "Напишите диапозон дат в формате dd.mm.yyyy - dd.mm.yyyy", 
                 reply_markup=ReplyKeyboardRemove()
             )
 
@@ -159,19 +190,23 @@ class MyMoneyBot:
 
         @self.bot.message_handler(func=lambda message: message.text == self.buttons["top_expense"])
         def get_top_expense(message):
-            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+            self.db_manager.update_user_state(message.from_user.id, "top_expense")
+            self.bot.send_message(message.chat.id, "Укажите дату для получения статистики", reply_markup=self.calendar_menu())
         
         @self.bot.message_handler(func=lambda message: message.text == self.buttons["top_income"])
         def get_top_income(message):
-            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+            self.db_manager.update_user_state(message.from_user.id, "top_income")
+            self.bot.send_message(message.chat.id, "Укажите дату для получения статистики", reply_markup=self.calendar_menu())
         
         @self.bot.message_handler(func=lambda message: message.text == self.buttons["dynamics_expense"])
         def get_dynamics_expense(message):
-            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+            self.db_manager.update_user_state(message.from_user.id, "dynamics_expense")
+            self.bot.send_message(message.chat.id, "Укажите дату для получения статистики", reply_markup=self.calendar_menu())
         
         @self.bot.message_handler(func=lambda message: message.text == self.buttons["dynamics_income"])
         def get_dynamics_income(message):
-            self.bot.send_message(message.chat.id, "Пока не реализовано", reply_markup=self.main_menu())
+            self.db_manager.update_user_state(message.from_user.id, "dynamics_income")
+            self.bot.send_message(message.chat.id, "Укажите дату для получения статистики", reply_markup=self.calendar_menu())
         
         @self.bot.message_handler(func=lambda message: message.text == self.buttons["back_menu"])
         def back_main_menu(message):
@@ -181,6 +216,8 @@ class MyMoneyBot:
         def process_action(message):
             try:
                 user = self.db_manager.get_user(message.from_user.id)
+                date_start = datetime.now()
+                date_end = datetime.now()
 
                 if user.current_state == 'income':
                     income_data = message.text.split(',')
@@ -202,6 +239,23 @@ class MyMoneyBot:
                     description = category_data[1].strip()
                     self.db_manager.add_category(user.telegram_id, name, description)
                     self.bot.send_message(message.chat.id, "Категория добавлена!", reply_markup=self.main_menu())
+                
+                elif user.current_state == 'top_expense':
+                    date_start, date_end = self.parse_date(message.text)
+                    print(self.db_manager.get_transactions(user.telegram_id, date_start, date_end, 'expense'))
+                    self.bot.send_message(message.chat.id, f"top_expense {message.text}", reply_markup=self.main_menu())
+                
+                elif user.current_state == 'top_income':
+                    date_start, date_end = self.parse_date(message.text)
+                    self.bot.send_message(message.chat.id, "top_income", reply_markup=self.main_menu())
+                
+                elif user.current_state == 'dynamics_expense':
+                    date_start, date_end = self.parse_date(message.text)
+                    self.bot.send_message(message.chat.id, "dynamics_expense", reply_markup=self.main_menu())
+                
+                elif user.current_state == 'dynamics_income':
+                    date_start, date_end = self.parse_date(message.text)
+                    self.bot.send_message(message.chat.id, "dynamics_income", reply_markup=self.main_menu())
 
                 self.db_manager.update_user_state(message.from_user.id, None)
                 self.db_manager.update_user_category(message.from_user.id, None)
@@ -211,6 +265,21 @@ class MyMoneyBot:
                 self.db_manager.update_user_state(message.from_user.id, None)
                 self.db_manager.update_user_category(message.from_user.id, None)
                 print(e)
+
+    def parse_date(self, input):
+        date_start = datetime.now()
+        date_end = datetime.now()
+
+        if ' - ' in input:
+            date_start_str, date_end_str = input.split(' - ')
+            date_start = datetime.strptime(date_start_str, "%d.%m.%Y")
+            date_end = datetime.strptime(date_end_str, "%d.%m.%Y")
+        elif input == 'За последнюю неделю':
+            pass
+        else:
+            raise ValueError("Неверное значение даты")
+
+        return date_start, date_end
 
     def run(self):
         self.bot.polling()

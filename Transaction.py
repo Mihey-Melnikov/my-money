@@ -9,5 +9,5 @@ class Transaction:
         self.amount = amount
         self.description = description
         self.category = category
-        self.type = type
+        # self.type = type
         self.date = date if date else datetime.now()

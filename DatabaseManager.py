@@ -123,11 +123,12 @@ class DatabaseManager:
         self.session.commit()
         return transaction
 
-    def get_transactions(self, user_id, start_date, end_date):
+    def get_transactions(self, user_id, start_date, end_date, transaction_type):
         return self.session.query(TransactionModel).filter(
             TransactionModel.user_id == user_id,
             TransactionModel.date >= start_date,
-            TransactionModel.date <= end_date
+            TransactionModel.date <= end_date,
+            TransactionModel.amount <= 0 if transaction_type == "expense" else TransactionModel.amount > 0
         ).all()
 
     def close(self):
