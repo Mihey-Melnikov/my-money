@@ -134,25 +134,8 @@ class MyMoneyBot:
         @self.bot.message_handler(func=lambda message: message.text == self.buttons["get_category"])
         def get_categories(message):
             categories = [[category.name, category.description] for category in self.db_manager.get_categories(message.from_user.id)]
-            col_labels = ['Название', 'Описание']
-            fig, ax = plt.subplots(figsize=(5, len(categories) * 0.4 + 0.5))
-            ax.axis('tight')
-            ax.axis('off')
-            table = ax.table(cellText=categories, colLabels=col_labels, cellLoc="left", loc="center")
-            for j, label in enumerate(col_labels):
-                header_cell = table[0, j]
-                header_cell.set_text_props(weight='bold', color='black')
-                header_cell.set_facecolor('#f0f0f0')
-            for i in range(1, len(categories) + 1): 
-                for j in range(len(col_labels)):
-                    table[i, j].set_text_props(ha="left")
-            image_stream = BytesIO()
-            plt.savefig(image_stream, format='png', bbox_inches='tight', pad_inches=0.05)
-            image_stream.seek(0)
-            plt.close(fig)
-
-            self.bot.send_photo(message.chat.id, image_stream, caption="Ваши категории:")
-
+            table_image = self.get_table(['Название', 'Описание'], categories)
+            self.bot.send_photo(message.chat.id, table_image, caption="Ваши категории:")
 
         @self.bot.message_handler(func=lambda message: "🗒" in message.text)
         def add_transaction(message):
@@ -242,8 +225,15 @@ class MyMoneyBot:
                 
                 elif user.current_state == 'top_expense':
                     date_start, date_end = self.parse_date(message.text)
-                    print(self.db_manager.get_transactions(user.telegram_id, date_start, date_end, 'expense'))
-                    self.bot.send_message(message.chat.id, f"top_expense {message.text}", reply_markup=self.main_menu())
+                    transactions = [[transaction.description, abs(transaction.amount)] 
+                                    for transaction in self.db_manager.get_transactions(
+                                        user.telegram_id, date_start, date_end, 'expense')]
+                    transactions.sort(key=lambda x: (-x[1], x[0]))
+                    table_image = self.get_table(['Название', 'Сумма'], transactions)
+                    self.bot.send_photo(message.chat.id, 
+                                        table_image, 
+                                        reply_markup=self.main_menu(), 
+                                        caption=f"Топ трат с {date_start.strftime('%d.%m.%Y')} по {date_end.strftime('%d.%m.%Y')}:")
                 
                 elif user.current_state == 'top_income':
                     date_start, date_end = self.parse_date(message.text)
@@ -273,13 +263,43 @@ class MyMoneyBot:
         if ' - ' in input:
             date_start_str, date_end_str = input.split(' - ')
             date_start = datetime.strptime(date_start_str, "%d.%m.%Y")
-            date_end = datetime.strptime(date_end_str, "%d.%m.%Y")
+            date_end = datetime.strptime(date_end_str, "%d.%m.%Y") + timedelta(seconds=86399) # сутки - 1 секунда, чтобы входили траты за день
         elif input == 'За последнюю неделю':
-            pass
+            date_start = datetime.now() - timedelta(days=7)
+            date_end = datetime.now()
+        elif input == 'За последний месяц':
+            date_start = datetime.now() - timedelta(days=30)
+            date_end = datetime.now()
+        elif input == 'За последний квартал':
+            date_start = datetime.now() - timedelta(days=90)
+            date_end = datetime.now()
+        elif input == 'За последний год':
+            date_start = datetime.now() - timedelta(days=365)
+            date_end = datetime.now()
         else:
             raise ValueError("Неверное значение даты")
 
         return date_start, date_end
+
+    def get_table(self, head, data):
+        col_labels = head
+        fig, ax = plt.subplots(figsize=(5, len(data) * 0.4))
+        ax.axis('tight')
+        ax.axis('off')
+        table = ax.table(cellText=data, colLabels=col_labels, cellLoc="left", loc="center")
+        for j, label in enumerate(col_labels):
+            header_cell = table[0, j]
+            header_cell.set_text_props(weight='bold', color='black')
+            header_cell.set_facecolor('#f0f0f0')
+        for i in range(1, len(data) + 1): 
+            for j in range(len(col_labels)):
+                table[i, j].set_text_props(ha="left")
+        image_stream = BytesIO()
+        plt.savefig(image_stream, format='png', bbox_inches='tight', pad_inches=0.05)
+        image_stream.seek(0)
+        plt.close(fig)
+
+        return image_stream
 
     def run(self):
         self.bot.polling()
